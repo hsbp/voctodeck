@@ -171,32 +171,18 @@ class RecvThread(threading.Thread):
 
     def run(self):
         global active_scene, stream, audio
+        transition_map = {
+                ('fullscreen', 'slides'): 'pc-full',
+                ('fullscreen', 'cam'):   'cam-full',
+                ('picture_in_picture', 'slides'): 'pip',
+                ('side_by_side_preview', 'slides'): 'sbsp',
+                ('side_by_side_equal', 'slides'): 'sbse',
+                }
         while True:
             for row in s.recv(1024).decode('utf-8').strip().split('\n'):
                 data = row.split(' ')
                 if data[0] == 'composite_mode_and_video_status':
-                    if data[1] == 'fullscreen':
-                        if data[2] == 'slides':
-                            active_scene = 'pc-full'
-                        elif data[2] == 'cam':
-                            active_scene = 'cam-full'
-                    elif data[1] == 'picture_in_picture':
-                        if data[2] == 'slides':
-                            active_scene = 'pip'
-                        else:
-                            active_scene = None
-                    elif data[1] == 'side_by_side_preview':
-                        if data[2] == 'slides':
-                            active_scene = 'sbsp'
-                        else:
-                            active_scene = None
-                    elif data[1] == 'side_by_side_equal':
-                        if data[2] == 'slides':
-                            active_scene = 'sbse'
-                        else:
-                            active_scene = None
-                    else:
-                        active_scene = None
+                    active_scene = transition_map.get((data[1], data[2]))
                 elif data[0] == 'stream_status':
                     stream = '-'.join(data[1:])
                 elif data[0] == 'audio_status':
