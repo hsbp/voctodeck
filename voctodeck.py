@@ -25,17 +25,10 @@ s.sendall(b'get_composite_mode_and_video_status\nget_stream_status\nget_audio\n'
 
 # Generates a custom tile with run-time generated text and custom image via the
 # PIL module.
-def render_key_image(deck, icon_filename, font_filename, label_text, name):
+def render_key_image(deck, font_filename, label_text, name):
     # Create new key image of the correct dimensions, black background
     image = PILHelper.create_image(deck)
     draw = ImageDraw.Draw(image)
-
-    # Add image overlay, rescaling the image asset if it is too large to fit
-    # the requested dimensions via a high quality Lanczos scaling algorithm
-    #icon = Image.open(icon_filename).convert("RGBA")
-    #icon.thumbnail((image.width, image.height - 20), Image.LANCZOS)
-    #icon_pos = ((image.width - icon.width) // 2, 0)
-    #image.paste(icon, icon_pos, icon)
 
     if name == active_scene:
         draw.rectangle((0, 0, image.width - 1, image.height - 1), fill=(255, 0, 0))
@@ -63,7 +56,6 @@ audio = None
 def get_key_style(deck, key, state):
     # Last button in the example application is the exit button
     exit_key_index = deck.key_count() - 1
-    icon = "{}.png".format("Exit")
     font = "Roboto-Regular.ttf"
 
     if key == exit_key_index:
@@ -111,7 +103,6 @@ def get_key_style(deck, key, state):
 
     return {
             "name": name,
-            "icon": os.path.join(os.path.dirname(__file__), "Assets", icon),
             "font": os.path.join(os.path.dirname(__file__), "Assets", font),
             "label": label
             }
@@ -120,11 +111,11 @@ def get_key_style(deck, key, state):
     # Creates a new key image based on the key index, style and current key state
 # and updates the image on the StreamDeck.
 def update_key_image(deck, key, state):
-    # Determine what icon and label to use on the generated key
+    # Determine what label to use on the generated key
     key_style = get_key_style(deck, key, state)
 
     # Generate the custom key with the requested image and label
-    image = render_key_image(deck, key_style["icon"], key_style["font"], key_style["label"], key_style["name"])
+    image = render_key_image(deck, key_style["font"], key_style["label"], key_style["name"])
 
     # Update requested key with the generated image
     deck.set_key_image(key, image)
