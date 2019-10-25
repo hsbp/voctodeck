@@ -25,97 +25,99 @@ s.sendall(b'get_composite_mode_and_video_status\nget_stream_status\nget_audio\n'
 
 # Generates a custom tile with run-time generated text and custom image via the
 # PIL module.
-def render_key_image(deck, font_filename, label_text, name):
+def render_key_image(deck, btn):
     # Create new key image of the correct dimensions, black background
     image = PILHelper.create_image(deck)
     draw = ImageDraw.Draw(image)
 
-    if name == active_scene:
-        draw.rectangle((0, 0, image.width - 1, image.height - 1), fill=(255, 0, 0))
-    elif name.startswith('stream-') and name[7:] == stream:
-        draw.rectangle((0, 0, image.width - 1, image.height - 1), fill=(0, 0, 255))
-    elif name == audio:
-        draw.rectangle((0, 0, image.width - 1, image.height - 1), fill=(128, 0, 128))
+    if btn.selected:
+        draw.rectangle((0, 0, image.width - 1, image.height - 1), fill=btn.selected_color)
 
-    # Load a custom TrueType font and use it to overlay the key index, draw key
-    # label onto the image
-    font = ImageFont.truetype(font_filename, 14)
-    label_w, label_h = draw.textsize(label_text, font=font)
+    label_w, label_h = draw.textsize(btn.label)
     label_pos = ((image.width - label_w) // 2, (image.height - label_h) // 2)
-    draw.text(label_pos, text=label_text, font=font, fill="white")
+    draw.text(label_pos, text=btn.label, fill="white")
 
     return PILHelper.to_native_format(deck, image)
 
 
-active_scene = None
-stream = None
-audio = None
+class Button(object):
+    selected = False
+
+    def __init__(self, label=""):
+        self.label = label
+
+    def pressed(self):
+        pass
 
 
-# Returns styling information for a key based on its position and state.
-def get_key_style(deck, key, state):
-    # Last button in the example application is the exit button
-    exit_key_index = deck.key_count() - 1
-    font = "Roboto-Regular.ttf"
+SCENE_BUTTONS = {}
 
-    if key == exit_key_index:
-        name = "exit"
-        label = "Bye" if state else "Exit"
-    elif key == 0:
-        name = "pc-full"
-        label = "PC\nFULL"
-    elif key == 1:
-        name = "cam-full"
-        label = "CAM\nFULL"
-    elif key == 2:
-        name = "pip"
-        label = "Picture\nin\nPicture"
-    elif key == 3:
-        name = "stream-live"
-        label = "STREAM\nLIVE"
-    elif key == 5:
-        name = "pc-audio"
-        label = "PC\nAUDIO"
-    elif key == 6:
-        name = "cam-audio"
-        label = "CAM\nAUDIO"
-    elif key == 7:
-        name = "sbsp"
-        label = "Side-by-\nside\npreview"
-    elif key == 8:
-        name = "stream-blank-pause"
-        label = "STREAM\nPAUSE"
-    elif key == 10:
-        name = "pc-restart"
-        label = "PC\nRESTART"
-    elif key == 11:
-        name = "cam-restart"
-        label = "CAM\nRESTART"
-    elif key == 12:
-        name = "sbse"
-        label = "Side-by-\nside\nequal"
-    elif key == 13:
-        name = "stream-blank-nostream"
-        label = "NO\nSTREAM"
-    else:
-        name = "emoji"
-        label = ''
+class SceneButton(Button):
+    selected_color = (255, 0, 0)
 
-    return {
-            "name": name,
-            "font": os.path.join(os.path.dirname(__file__), "Assets", font),
-            "label": label
-            }
+    def __init__(self, label, layout, inputs):
+        Button.__init__(self, label)
+        self.scene = (' '.join(inputs) + ' ' + layout).encode('utf-8')
+        SCENE_BUTTONS[tuple([layout] + inputs)] = self
 
+    def pressed(self):
+        s.sendall(b'set_videos_and_composite ' + self.scene + b'\n')
+
+AUDIO_BUTTONS = []
+
+
+class AudioButton(Button):
+    selected_color = (128, 0, 128)
+
+    def __init__(self, label, channel):
+        Button.__init__(self, label)
+        self.channel = channel
+        AUDIO_BUTTONS.append(self)
+
+    def pressed(self):
+        s.sendall(f'set_audio {self.channel}\n'.encode('utf-8'))
+
+
+STREAM_BUTTONS = {}
+
+class StreamButton(Button):
+    selected_color = (0, 0, 255)
+
+    def __init__(self, label, state, blank):
+        Button.__init__(self, label)
+        self.state = state.encode('utf-8')
+        self.blank = blank
+        STREAM_BUTTONS[state, blank] = self
+
+    def pressed(self):
+        s.sendall(((b'set_stream_blank ' + self.state) if self.blank else b'set_stream_live') + b'\n')
+
+
+BUTTONS = [
+        SceneButton("PC\nFULL", "fullscreen", ["slides", "cam"]),
+        SceneButton("CAM\nFULL", "fullscreen", ["cam", "slides"]),
+        SceneButton("Picture\nin\nPicture", "picture_in_picture", ["slides", "cam"]),
+        StreamButton("STREAM\nLIVE", "live", blank=False),
+        Button(),
+
+        AudioButton("PC\nAUDIO", "slides"),
+        AudioButton("CAM\nAUDIO", "cam"),
+        SceneButton("Side-by-\nside\npreview", "side_by_side_preview", ["slides", "cam"]),
+        StreamButton("STREAM\nPAUSE", "pause", blank=True),
+        Button(),
+
+        Button("PC\nRESTART"),
+        Button("CAM\nRESTART"),
+        SceneButton("Side-by-\nside\nequal", "side_by_side_equal", ["slides", "cam"]), 
+        StreamButton("NO\nSTREAM", "nostream", blank=True),
+        Button(),
+        ]
 
     # Creates a new key image based on the key index, style and current key state
 # and updates the image on the StreamDeck.
-def update_key_image(deck, key, state):
-    # Determine what label to use on the generated key
-    key_style = get_key_style(deck, key, state)
-
+def update_key_image(deck, key):
     # Generate the custom key with the requested image and label
-    image = render_key_image(deck, key_style["font"], key_style["label"], key_style["name"])
+    image = render_key_image(deck, BUTTONS[key])
 
     # Update requested key with the generated image
     deck.set_key_image(key, image)
@@ -127,41 +129,8 @@ def key_change_callback(deck, key, state):
     # Print new key state
     print("Deck {} Key {} = {}".format(deck.id(), key, state), flush=True)
 
-    # Update the key image based on the new key state
-    update_key_image(deck, key, state)
-
-    # Check if the key is changing to the pressed state
     if state:
-        key_style = get_key_style(deck, key, state)
-
-        # When an exit button is pressed, close the application
-        if key_style["name"] == "exit":
-            # Reset deck, clearing all button images
-            deck.reset()
-
-            # Close deck handle, terminating internal worker threads
-            deck.close()
-            s.close()
-        elif key_style["name"] == "pc-full":
-            s.sendall(b'set_videos_and_composite slides * fullscreen\n')
-        elif key_style["name"] == "cam-full":
-            s.sendall(b'set_videos_and_composite cam * fullscreen\n')
-        elif key_style["name"] == "pip":
-            s.sendall(b'set_videos_and_composite slides cam picture_in_picture\n')
-        elif key_style["name"] == "sbsp":
-            s.sendall(b'set_videos_and_composite slides cam side_by_side_preview\n')
-        elif key_style["name"] == "sbse":
-            s.sendall(b'set_videos_and_composite slides cam side_by_side_equal\n')
-        elif key_style["name"].startswith('stream-'):
-            parts = key_style["name"].split('-')
-            if parts[1] == 'blank':
-                s.sendall(('set_stream_blank ' + parts[2] + '\n').encode('utf-8'))
-            else:
-                s.sendall(b'set_stream_live\n')
-        elif key_style["name"] == "pc-audio":
-            s.sendall(b'set_audio slides\n')
-        elif key_style["name"] == "cam-audio":
-            s.sendall(b'set_audio cam\n')
+        BUTTONS[key].pressed()
         
 
 class RecvThread(threading.Thread):
@@ -170,32 +139,28 @@ class RecvThread(threading.Thread):
         self.deck = deck
 
     def run(self):
-        global active_scene, stream, audio
-        transition_map = {
-                ('fullscreen', 'slides'): 'pc-full',
-                ('fullscreen', 'cam'):   'cam-full',
-                ('picture_in_picture', 'slides'): 'pip',
-                ('side_by_side_preview', 'slides'): 'sbsp',
-                ('side_by_side_equal', 'slides'): 'sbse',
-                }
         while True:
             for row in s.recv(1024).decode('utf-8').strip().split('\n'):
                 data = row.split(' ')
                 if data[0] == 'composite_mode_and_video_status':
-                    active_scene = transition_map.get((data[1], data[2]))
+                    for v in SCENE_BUTTONS.values():
+                        v.selected = False
+                    b = SCENE_BUTTONS.get(tuple(data[1:]))
+                    if b is not None:
+                        b.selected = True
                 elif data[0] == 'stream_status':
-                    stream = '-'.join(data[1:])
+                    for v in STREAM_BUTTONS.values():
+                        v.selected = False
+                    b = STREAM_BUTTONS.get((data[-1], data[1] == 'blank'))
+                    if b is not None:
+                        b.selected = True
                 elif data[0] == 'audio_status':
                     p = json.loads(row[13:])
-                    if p['cam'] == 1:
-                        audio = 'cam-audio'
-                    elif p['slides'] == 1:
-                        audio = 'pc-audio'
-                    else:
-                        audio = None
+                    for b in AUDIO_BUTTONS:
+                        b.selected = p[b.channel] == 1
                 print(repr(data))
                 for key in range(deck.key_count()):
-                    update_key_image(deck, key, False)
+                    update_key_image(deck, key)
 
 
 if __name__ == "__main__":
@@ -212,7 +177,7 @@ if __name__ == "__main__":
 
         # Set initial key images
         for key in range(deck.key_count()):
-            update_key_image(deck, key, False)
+            update_key_image(deck, key)
 
         # Register callback function for when a key state changes
         deck.set_key_callback(key_change_callback)
