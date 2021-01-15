@@ -94,15 +94,15 @@ class StreamButton(Button):
 
 
 BUTTONS = [
-        SceneButton("PC\nFULL", "fullscreen", ["slides", "cam"]),
-        SceneButton("CAM\nFULL", "fullscreen", ["cam", "slides"]),
-        SceneButton("Picture\nin\nPicture", "picture_in_picture", ["slides", "cam"]),
+        SceneButton("RED\nFULL", "fullscreen", ["slides", "cam"]),
+        SceneButton("BLUE\nFULL", "fullscreen", ["cam", "slides"]),
+        SceneButton("PiP\nRED\nBIG", "picture_in_picture", ["slides", "cam"]),
         StreamButton("STREAM\nLIVE", "live", blank=False),
         Button(),
 
         AudioButton("PC\nAUDIO", "slides"),
         AudioButton("CAM\nAUDIO", "cam"),
-        SceneButton("Side-by-\nside\npreview", "side_by_side_preview", ["slides", "cam"]),
+        SceneButton("PiP\nBLUE\nBIG", "picture_in_picture", ["cam", "slides"]),
         StreamButton("STREAM\nPAUSE", "pause", blank=True),
         Button(),
 
