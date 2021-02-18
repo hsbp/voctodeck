@@ -12,6 +12,7 @@
 
 import os
 import threading
+from subprocess import Popen
 from PIL import Image, ImageDraw, ImageFont
 from StreamDeck.DeviceManager import DeviceManager
 from StreamDeck.ImageHelpers import PILHelper
@@ -93,12 +94,21 @@ class StreamButton(Button):
         s.sendall(((b'set_stream_blank ' + self.state) if self.blank else b'set_stream_live') + b'\n')
 
 
+class ExecButton(Button):
+    def __init__(self, label, cmd):
+        Button.__init__(self, label)
+        self.cmd = cmd
+
+    def pressed(self):
+        Popen(self.cmd, shell=True)
+
+
 BUTTONS = [
         SceneButton("PC\nFULL", "fullscreen", ["slides", "cam"]),
         SceneButton("CAM\nFULL", "fullscreen", ["cam", "slides"]),
         SceneButton("Picture\nin\nPicture", "picture_in_picture", ["slides", "cam"]),
         StreamButton("STREAM\nLIVE", "live", blank=False),
-        Button(),
+        ExecButton('WP7', 'i3-msg workspace 7'),
 
         AudioButton("PC\nAUDIO", "slides"),
         AudioButton("CAM\nAUDIO", "cam"),
