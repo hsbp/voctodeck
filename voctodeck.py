@@ -132,7 +132,7 @@ BUTTONS = [
         Button("CAM\nRESTART"),
         SceneButton("Side-by-\nside\nequal", "side_by_side_equal", ["slides", "cam"]), 
         StreamButton("NO\nSTREAM", "nostream", blank=True),
-        Button(),
+        ExecUpdateButton('MIC\nMUTE', './micmute.sh', 'amixer get Digital | grep -Fq "Capture 0 ["'),
         ]
 
     # Creates a new key image based on the key index, style and current key state
