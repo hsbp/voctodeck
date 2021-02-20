@@ -11,8 +11,9 @@
 # tiles generated at runtime, and responding to button state change events.
 
 import os
+import time
 import threading
-from subprocess import Popen
+from subprocess import Popen, call
 from PIL import Image, ImageDraw, ImageFont
 from StreamDeck.DeviceManager import DeviceManager
 from StreamDeck.ImageHelpers import PILHelper
@@ -103,6 +104,17 @@ class ExecButton(Button):
         Popen(self.cmd, shell=True)
 
 
+UPDATE_BUTTONS = []
+
+class ExecUpdateButton(ExecButton):
+    selected_color = (0, 128, 0)
+
+    def __init__(self, label, cmd, update):
+        ExecButton.__init__(self, label, cmd)
+        self.update = update
+        UPDATE_BUTTONS.append(self)
+
+
 BUTTONS = [
         SceneButton("PC\nFULL", "fullscreen", ["slides", "cam"]),
         SceneButton("CAM\nFULL", "fullscreen", ["cam", "slides"]),
@@ -114,7 +126,7 @@ BUTTONS = [
         AudioButton("CAM\nAUDIO", "cam"),
         SceneButton("Side-by-\nside\npreview", "side_by_side_preview", ["slides", "cam"]),
         StreamButton("STREAM\nPAUSE", "pause", blank=True),
-        Button(),
+        ExecUpdateButton('YK', 'systemctl --user restart yubikey-agent', 'systemctl --user status yubikey-agent >/dev/null'),
 
         Button("PC\nRESTART"),
         Button("CAM\nRESTART"),
@@ -142,6 +154,25 @@ def key_change_callback(deck, key, state):
     if state:
         BUTTONS[key].pressed()
         
+
+class TickThread(threading.Thread):
+    def __init__(self, deck):
+        threading.Thread.__init__(self)
+        self.deck = deck
+
+    def run(self):
+        while True:
+            needs_update = False
+            for btn in UPDATE_BUTTONS:
+                old = btn.selected
+                btn.selected = call(btn.update, shell=True) == 0
+                needs_update |= btn.selected ^ old
+            if needs_update:
+                deck = self.deck
+                for key in range(deck.key_count()):
+                    update_key_image(deck, key)
+            time.sleep(1)
+
 
 class RecvThread(threading.Thread):
     def __init__(self, deck):
@@ -192,6 +223,7 @@ if __name__ == "__main__":
         # Register callback function for when a key state changes
         deck.set_key_callback(key_change_callback)
         RecvThread(deck).start()
+        TickThread(deck).start()
 
         # Wait until all application threads have terminated (for this example,
         # this is when all deck handles are closed)
