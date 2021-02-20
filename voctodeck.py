@@ -171,7 +171,7 @@ class TickThread(threading.Thread):
                 deck = self.deck
                 for key in range(deck.key_count()):
                     update_key_image(deck, key)
-            time.sleep(1)
+            time.sleep(0.2)
 
 
 class RecvThread(threading.Thread):
