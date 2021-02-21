@@ -13,7 +13,7 @@
 import os
 import time
 import threading
-from subprocess import Popen, call
+from subprocess import Popen, call, check_output
 from PIL import Image, ImageDraw, ImageFont
 from StreamDeck.DeviceManager import DeviceManager
 from StreamDeck.ImageHelpers import PILHelper
@@ -103,6 +103,18 @@ class ExecButton(Button):
     def pressed(self):
         Popen(self.cmd, shell=True)
 
+I3BUTTONS = {}
+
+class I3workspaceButton(Button):
+    selected_color = (128, 128, 0)
+
+    def __init__(self, label, workspace):
+        Button.__init__(self, label)
+        self.workspace = workspace
+        I3BUTTONS[workspace] = self
+
+    def pressed(self):
+        Popen(['i3-msg', 'workspace', str(self.workspace)])
 
 UPDATE_BUTTONS = []
 
@@ -174,6 +186,32 @@ class TickThread(threading.Thread):
             time.sleep(0.2)
 
 
+class I3Thread(threading.Thread):
+    def __init__(self, deck):
+        threading.Thread.__init__(self)
+        self.deck = deck
+
+    def run(self):
+        last_json = None
+        while True:
+            needs_update = False
+            workspaces = check_output(['i3-msg', '-t', 'get_workspaces'])
+            if workspaces != last_json:
+                for workspace in json.loads(workspaces):
+                    btn = I3BUTTONS.get(workspace['num'])
+                    if not btn:
+                        continue
+                    old = btn.selected
+                    btn.selected = workspace['visible']
+                    needs_update |= btn.selected ^ old
+                if needs_update:
+                    deck = self.deck
+                    for key in range(deck.key_count()):
+                        update_key_image(deck, key)
+                last_json = workspaces
+            time.sleep(0.2)
+
+
 class RecvThread(threading.Thread):
     def __init__(self, deck):
         threading.Thread.__init__(self)
@@ -224,6 +262,7 @@ if __name__ == "__main__":
         deck.set_key_callback(key_change_callback)
         RecvThread(deck).start()
         TickThread(deck).start()
+        I3Thread(deck).start()
 
         # Wait until all application threads have terminated (for this example,
         # this is when all deck handles are closed)
