@@ -212,6 +212,28 @@ class I3Thread(threading.Thread):
             time.sleep(0.2)
 
 
+class VideoThread(threading.Thread):
+    def __init__(self, deck):
+        threading.Thread.__init__(self)
+        self.deck = deck
+
+    def run(self):
+        s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        s.bind(('127.0.0.1', 5555))
+        s.listen(1)
+        conn, addr = s.accept()
+        with conn:
+            while True:
+                image = PILHelper.create_image(deck)
+                frame = conn.recv(11664)
+                if not frame:
+                    break
+                video = Image.frombytes('RGB', (72,54), frame, 'raw')
+                image.paste(video, (0, 0))
+                deck.set_key_image(14, PILHelper.to_native_format(deck, image))
+
+
+
 class RecvThread(threading.Thread):
     def __init__(self, deck):
         threading.Thread.__init__(self)
@@ -263,6 +285,7 @@ if __name__ == "__main__":
         RecvThread(deck).start()
         TickThread(deck).start()
         I3Thread(deck).start()
+        VideoThread(deck).start()
 
         # Wait until all application threads have terminated (for this example,
         # this is when all deck handles are closed)
