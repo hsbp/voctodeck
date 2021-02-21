@@ -209,7 +209,7 @@ if __name__ == "__main__":
 
     print("Found {} Stream Deck(s).\n".format(len(streamdecks)))
 
-    for index, deck in enumerate(streamdecks):
+    for deck in streamdecks:
         deck.open()
         deck.reset()
 
